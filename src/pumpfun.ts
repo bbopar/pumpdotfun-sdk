@@ -59,11 +59,13 @@ export class PumpFunSDK {
     this.connection = this.program.provider.connection;
   }
 
-  async createAndBuy (
+  async createAndBuy(
     creator: Keypair,
     mint: Keypair,
+    // buyers: Keypair[],
     createTokenMetadata: CreateTokenMetadata,
-    buyAmountSol: bigint,
+    buyAmountSolCreator: bigint,
+    // buyAmountSolBuyers: bigint[],
     slippageBasisPoints: bigint = 500n,
     priorityFees?: PriorityFee,
     commitment: Commitment = DEFAULT_COMMITMENT,
@@ -81,11 +83,11 @@ export class PumpFunSDK {
 
     let newTx = new Transaction().add(createTx);
 
-    if (buyAmountSol > 0) {
+    if (buyAmountSolCreator > 0) {
       const globalAccount = await this.getGlobalAccount(commitment);
-      const buyAmount = globalAccount.getInitialBuyPrice(buyAmountSol);
+      const buyAmount = globalAccount.getInitialBuyPrice(buyAmountSolCreator);
       const buyAmountWithSlippage = calculateWithSlippageBuy(
-        buyAmountSol,
+        buyAmountSolCreator,
         slippageBasisPoints
       );
 
@@ -99,6 +101,27 @@ export class PumpFunSDK {
 
       newTx.add(buyTx);
     }
+
+    // if (buyers.length > 0) {
+    //   for (const [index, buyer] of buyers.entries()) {
+    //     const globalAccount = await this.getGlobalAccount(commitment);
+    //     const buyAmount = globalAccount.getInitialBuyPrice(buyAmountSolBuyers[index]);
+    //     const buyAmountWithSlippage = calculateWithSlippageBuy(
+    //       buyAmountSolCreator[index],
+    //       slippageBasisPoints
+    //     );
+
+    //     const buyTx = await this.getBuyInstructions(
+    //       buyer.publicKey,
+    //       mint.publicKey,
+    //       globalAccount.feeRecipient,
+    //       buyAmount,
+    //       buyAmountWithSlippage
+    //     );
+
+    //     newTx.add(buyTx);
+    //   }
+    // }
 
     let createResults = await sendTx(
       this.connection,
@@ -395,11 +418,11 @@ export class PumpFunSDK {
   async createTokenMetadata(create: CreateTokenMetadata) {
     // Validate file
     if (!(create.file instanceof Blob)) {
-        throw new Error('File must be a Blob or File object');
+      throw new Error("File must be a Blob or File object");
     }
 
     let formData = new FormData();
-    formData.append("file", create.file, 'image.png'); // Add filename
+    formData.append("file", create.file, "image.png"); // Add filename
     formData.append("name", create.name);
     formData.append("symbol", create.symbol);
     formData.append("description", create.description);
@@ -409,40 +432,42 @@ export class PumpFunSDK {
     formData.append("showName", "true");
 
     try {
-        const request = await fetch("https://pump.fun/api/ipfs", {
-            method: "POST",
-            headers: {
-                'Accept': 'application/json',
-            },
-            body: formData,
-            credentials: 'same-origin'
-        });
+      const request = await fetch("https://pump.fun/api/ipfs", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        body: formData,
+        credentials: "same-origin",
+      });
 
-        if (request.status === 500) {
-            // Try to get more error details
-            const errorText = await request.text();
-            throw new Error(`Server error (500): ${errorText || 'No error details available'}`);
-        }
+      if (request.status === 500) {
+        // Try to get more error details
+        const errorText = await request.text();
+        throw new Error(
+          `Server error (500): ${errorText || "No error details available"}`
+        );
+      }
 
-        if (!request.ok) {
-            throw new Error(`HTTP error! status: ${request.status}`);
-        }
+      if (!request.ok) {
+        throw new Error(`HTTP error! status: ${request.status}`);
+      }
 
-        const responseText = await request.text();
-        if (!responseText) {
-            throw new Error('Empty response received from server');
-        }
+      const responseText = await request.text();
+      if (!responseText) {
+        throw new Error("Empty response received from server");
+      }
 
-        try {
-            return JSON.parse(responseText);
-        } catch (e) {
-            throw new Error(`Invalid JSON response: ${responseText}`);
-        }
+      try {
+        return JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Invalid JSON response: ${responseText}`);
+      }
     } catch (error) {
-        console.error('Error in createTokenMetadata:', error);
-        throw error;
+      console.error("Error in createTokenMetadata:", error);
+      throw error;
     }
-}
+  }
   //EVENTS
   addEventListener<T extends PumpFunEventType>(
     eventType: T,
